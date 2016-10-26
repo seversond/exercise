@@ -189,12 +189,11 @@ testing &lt;- rawdata[-inTrain,]</code></pre>
 <p>With this high number of predictors it is believed that some form of dimensionality reduction should be employed. Prinicple Component Analysis preprocessing was done on some of the methods. Also, some normalizing the data with centering and scaling was employed.</p>
 <p>A summary of the performance of each model is listed in Table 1 and the code for each model is listed below.</p>
 <pre class="r"><code>#modfit.rf &lt;- train(classe~.,data=training, preProcess=c(&quot;scale&quot;,&quot;center&quot;,&quot;pca&quot;),method=&quot;rf&quot;)
-#modfit.gbm &lt;- train(classe ~ ., data=training, preProcess=c(&quot;scale&quot;, &quot;center&quot;), method = &quot;gbm&quot;)
-#modfit.lda &lt;- train(classe ~ ., data=training, method = &quot;lda&quot;)
-#modfit.rfnp &lt;- train(classe~.,data=training, preProcess=c(&quot;scale&quot;,&quot;center&quot;),method=&quot;rf&quot;)
-#modfit.rfb &lt;- train(classe~.,data=training, method=&quot;rf&quot;)
-#modfit.rp &lt;- train(classe ~ ., data=training, method = &quot;rpart&quot;)
-load(&quot;ml.rD&quot;)
+modfit.gbm &lt;- train(classe ~ ., data=training, preProcess=c(&quot;scale&quot;, &quot;center&quot;), method = &quot;gbm&quot;)
+modfit.lda &lt;- train(classe ~ ., data=training, method = &quot;lda&quot;)
+modfit.rfnp &lt;- train(classe~.,data=training, preProcess=c(&quot;scale&quot;,&quot;center&quot;),method=&quot;rf&quot;)
+modfit.rfb &lt;- train(classe~.,data=training, method=&quot;rf&quot;)
+modfit.rp &lt;- train(classe ~ ., data=training, method = &quot;rpart&quot;)
 pred.rf &lt;- suppressMessages(predict(modfit.rf, testing))
 rf.ac &lt;- confusionMatrix(testing$classe, pred.rf)$overall['Accuracy']
 pred.gbm &lt;- suppressMessages(predict(modfit.gbm, testing))
