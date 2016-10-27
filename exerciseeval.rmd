@@ -1,0 +1,143 @@
+---
+title: "Exercise Performance Prediction"
+author: "David Severson"
+date: "10/23/2016"
+output: html_document
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+A large study in exercise set out to examine the effectiveness of the performance of various exercises.  The use of new data colleciton devices has dramatically increased the available information.  The objective of this analysis is to use that study information to determine if predictor variables from the study can be used to predict the effectiveness of various exercises. The data for this analysis drawn from this [study](http://groupware.les.inf.puc-rio.br/har).
+
+The training and validation data can be found [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv).
+
+## Data Preparation and Variable Selection
+
+Some of the elements in the data had indications divide by zero errors.  These elements were replaced with NA.  
+
+```{r loading}
+library(caret)
+library(ggplot2)
+library(reshape2)
+set.seed(7)  # setting seed for reproducability
+rawdata<-read.csv("pml-training.csv", na.strings=c("#DIV/0!","NA"))
+# clean up data here for DIV error
+ftesting = read.csv("pml-testing.csv")   # the Final Test Set
+```
+
+### Variable Selection
+
+An extensive number of records are NA in the original dataset. Also, there are numerous columns in the file pml-testing.csv.  We will refer to this data as the **Final Test Set**.  Our first choice for variable selection was to use any predictors in the Final Test Set that didn't contain missing data.  Our goal was to product the highest prediction effectiveness for data similiar to this **Final Test Set**.  We also excluded any predictor variables that involved identity of the participant or time.  We intended to build a predictor that was independent of training subjects.  Excluding time components was intended to keep the the model simple and robust.
+
+We had anticipated to do more work on variable selection through the development of the model but found this simple step to be quite effective.  It also had the benefits of being easier to explain.
+
+``` {r}
+keeps<-c("roll_belt","pitch_belt","yaw_belt","total_accel_belt",
+         "gyros_belt_x","gyros_belt_y","gyros_belt_z",
+         "accel_belt_x","accel_belt_y","accel_belt_z",
+         "magnet_belt_x","magnet_belt_y","magnet_belt_z",
+         "roll_arm","pitch_arm","yaw_arm","total_accel_arm",
+         "gyros_arm_x","gyros_arm_y","gyros_arm_z",
+         "accel_arm_x","accel_arm_y","accel_arm_z",
+         "magnet_arm_x","magnet_arm_y","magnet_arm_z",
+         "roll_dumbbell","pitch_dumbbell","yaw_dumbbell","total_accel_dumbbell",
+         "gyros_dumbbell_x","gyros_dumbbell_y","gyros_dumbbell_z",
+         "accel_dumbbell_x","accel_dumbbell_y","accel_dumbbell_z",
+         "magnet_dumbbell_x","magnet_dumbbell_y","magnet_dumbbell_z",
+         "roll_forearm","pitch_forearm","yaw_forearm","total_accel_forearm",
+         "gyros_forearm_x","gyros_forearm_y","gyros_forearm_z",
+         "accel_forearm_x","accel_forearm_y","accel_forearm_z",
+         "magnet_forearm_x","magnet_forearm_y","magnet_forearm_z",
+         "classe")
+rawdata<-rawdata[keeps]
+```
+
+We still have a rather large number of predictors to consider.  We chose to look at the correlation heatmap among this set of predictors to determine next steps in variable selection.  As a result of this heatmap we decided to proceed with this set of predictors.  
+
+```{r fig.scap="Correlation Heatmap of Predictors", , cache = TRUE}
+ggplot(data = melt(cor(rawdata[-53])), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() + 
+  labs(x="Same Predictors(labels removed for clarity)",y="Predictors") +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks = element_blank()) 
+```
+<center>Plot 1</center>
+
+## Cross Validation
+
+For cross validation a simple random subset of the data was withheld from the "training data".   A 75% of the records were reserved for training and 25% of the records were reserved for testing as part of cross validation.  We will refer to this test set for cross validatoin as the **Validation Test Set**.
+
+
+``` {r}
+inTrain<-createDataPartition(rawdata$classe, p=0.75, list=FALSE)
+training <- rawdata[ inTrain,]
+testing <- rawdata[-inTrain,]
+```
+
+## Model Construction
+
+We ran a variety of models to determine which models were more effective and which models may be beneficial in an ensamble.  Models included Random Forest, Linear Discriminant Analysis, Generalized Boosted Regression and a basic classification tree.
+
+With this high number of predictors it is believed that some form of dimensionality reduction should be employed.  Prinicple Component Analysis preprocessing was done on some of the methods.  Also, some normalizing the data with centering and scaling was employed. 
+
+A summary of the performance of each model is listed in Table 1 and the code for each model is listed below.
+
+
+``` {r rftrain, cache = TRUE}
+modfit.rf <- train(classe~.,data=training, preProcess=c("scale","center","pca"),method="rf")
+```
+``` {r gbmtrain, cache = TRUE}
+modfit.gbm <- train(classe ~ ., data=training, preProcess=c("scale", "center"), method = "gbm")
+```
+``` {r ldatrain, cache = TRUE}
+modfit.lda <- train(classe ~ ., data=training, method = "lda")
+```
+``` {r rfnptrain, cache = TRUE}
+modfit.rfnp <- train(classe~.,data=training, preProcess=c("scale","center"),method="rf")
+```
+``` {r rfbtrain, cache = TRUE}
+modfit.rfb <- train(classe~.,data=training, method="rf")
+```
+``` {r rptrain, , cache = TRUE}
+modfit.rp <- train(classe ~ ., data=training, method = "rpart")
+```
+``` {r predict, , cache = TRUE}
+pred.rf <- suppressMessages(predict(modfit.rf, testing))
+rf.ac <- confusionMatrix(testing$classe, pred.rf)$overall['Accuracy']
+pred.gbm <- suppressMessages(predict(modfit.gbm, testing))
+gbm.ac <- confusionMatrix(testing$classe, pred.gbm)$overall['Accuracy']
+pred.lda <- suppressMessages(predict(modfit.lda, testing))
+lda.ac <- confusionMatrix(testing$classe, pred.lda)$overall['Accuracy']
+pred.rfnp <- suppressMessages(predict(modfit.rfnp, testing))
+rfnp.ac <- confusionMatrix(testing$classe, pred.rfnp)$overall['Accuracy']
+pred.rfb <- suppressMessages(predict(modfit.rfb, testing))
+rfb.ac <- confusionMatrix(testing$classe, pred.rfb)$overall['Accuracy']
+pred.rp <- suppressMessages(predict(modfit.rp, testing))
+rp.ac <- confusionMatrix(testing$classe, pred.rp)$overall['Accuracy']
+```
+
+## Expected Out of Sample Error
+
+Model | Out of sample accuracy              | Description
+------|-------------------------------------|--------------------------------------------
+rf    | `r round(rf.ac*100,digits=1)`%      | Random Forest w/ PCA and normalized data
+gbm   | `r round(gbm.ac*100,digits=1)`%     | Generalized Boosted Regression 
+lda   | `r round(lda.ac*100,digits=1)`%     | Linear Discriminant Analysis
+rfnp  | `r round(rfnp.ac*100,digits=1)`%    | Random Forest wo/PCA
+rfb   | `r round(rfb.ac*100,digits=1)`%     | Random Forest (no preprocessing)
+rp    | `r round(rp.ac*100,digits=1)`%      | A classification tree
+<center>Table 1</center>
+
+
+**As a result the select model was Random Forest without PCA with an expected out of sample accuracy of `r round(rfnp.ac*100,digits=1)`%.**
+
+## Final Model Results
+
+```{r}
+print(confusionMatrix(testing$classe, pred.rfnp))
+```
